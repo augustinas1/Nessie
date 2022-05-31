@@ -4,6 +4,9 @@ using Printf
 
 ##
 
+""" 
+Specialised type for negative binomial mixtures using the Distributions.jl interface
+"""
 struct NegativeBinomialMixture{T} <: AbstractMixtureModel{Univariate,Discrete,NegativeBinomial{T}}
     components::Vector{NegativeBinomial{T}}
     prior::Categorical{T,Vector{T}}
@@ -31,6 +34,9 @@ function Base.show(io::IO, d::NegativeBinomialMixture)
     end
 end
 
+"""
+In keeping with StatsBase.jl's conventions, this function computes the *excess* kurtosis of a mixture.
+"""
 function StatsBase.kurtosis(dist::NegativeBinomialMixture)
     rr = [ comp.r for comp in dist.components ]
     pp = [ comp.p for comp in dist.components ]
@@ -63,4 +69,7 @@ function StatsBase.skewness(dist::NegativeBinomialMixture)
     (m3 - 3*m*s^2 - m^3) / s^3
 end
 
+"""
+The bimodality coefficient we use here is defined as 1 / (kurtosis - skewness^2)
+"""
 bimodcoeff(dist) = 1 / (kurtosis(dist) + 3 - skewness(dist) ^ 2)

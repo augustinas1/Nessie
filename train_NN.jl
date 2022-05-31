@@ -15,12 +15,18 @@ include("nbmixture.jl")
 include("nnet.jl")
 include("compat_NN.jl")
 
+"""
+    Compute the predicted distribution at input location `x` and 
+    evaluate its pdf at points `yy`. Faster alternative to
+    `pdf(Distribution(model, x), yy)` for `MNBModel`s.
+"""
 function pred_pdf(model, x::AbstractVector, yy)
     rr, pp, ww = model(x)
     mix_nbpdf(rr, pp, ww, yy)
 end
 
 ## Loss functions
+
 function loss_kldivergence(x::AbstractVector, y::AbstractVector, model)
     pred = pred_pdf(model, x, 0:length(y)-1)
     Flux.kldivergence(pred, y)
@@ -42,24 +48,12 @@ function loss_hellinger(x::AbstractVector, y::AbstractVector, model)
     hellinger(Float64.(pred), Float64.(y))
 end
 
-# Don't use this for training the NN yet!
-
-loss_wass2(x, y, model) = loss_wasserstein(x, y, model; p=2)
-
-function loss_wasserstein(x::AbstractVector, y::AbstractVector, model; p=1)
-    dist = Distribution(model, x)
-    
-    nmax = ceil(Int, max(length(y) - 1, mean(dist) + 3 * std(dist)))
-    xx = 0:nmax
-    
-    pred = pdf.(dist, xx)
-    pred ./= sum(pred)
-    
-    wasserstein(DiscreteNonParametric(xx, pred), 
-                DiscreteNonParametric(0:length(y) - 1, y), p=p)
-end
-
 ## Loss utility functions
+
+""" 
+    Computes the average loss over a batch. Here `X` is a vector of inputs
+    and `y` is the corresponding vector of outputs.
+"""
 function batch_loss(X::AbstractVector, y::AbstractVector, model;
                     loss = loss_crossentropy)
     ret = loss(X[1], y[1], model)
@@ -71,6 +65,9 @@ function batch_loss(X::AbstractVector, y::AbstractVector, model;
     ret / length(X)
 end
 
+"""
+    Similar to `batch_loss`, but multi-threaded.
+"""
 function mean_loss(X::AbstractVector, y::AbstractVector, model;
                     loss = loss_crossentropy)
     ret = zeros(Float32, Threads.nthreads())
@@ -82,25 +79,28 @@ function mean_loss(X::AbstractVector, y::AbstractVector, model;
     sum(ret) / length(X)
 end
 
+# For regularisation
 sqnorm(x) = sum(abs2, x)
 l2_loss(p) = sum(sqnorm, p)
 
 ##
 
+""" 
+    Wrapper struct for training hyperparameters
+"""
 struct TrainArgs{OT,DT}
-    # Hyperparameters
-    lr::Float64
-    l2_reg::Float64
-    max_rounds::Int
-    min_lr::Float64
-    batchsize::Int
-    optimizer::Type{OT}
+    lr::Float64             # Current learning rate
+    l2_reg::Float64         # L2 regularisation weight
+    max_rounds::Int         # Maximum number of epochs
+    min_lr::Float64         # Minimum learning rate 
+    batchsize::Int          # Batch size
+    optimizer::Type{OT}     # Optimizer (e.g. `Flux.ADAM`)
     
-    train_data::DT
-    valid_data::DT
+    train_data::DT          # Training dataset
+    valid_data::DT          # Validation dataset
 end
 
-function TrainArgs(train_data, valid_data, optimizer;
+function TrainArgs(train_data, valid_data, optimizer = ADAM;
                    lr::Real, 
                    max_rounds::Int, 
                    batchsize::Int = 100,
@@ -113,16 +113,19 @@ end
 
 ##
 
+"""
+    This struct captures some of the data generated while training Nessie.
+"""
 mutable struct NNTrainer{DL,MT,OT,AT <: TrainArgs}
-    train_loader::DL
+    train_loader::DL                # Uses the `Flux.DataLoader` interface
     
-    train_losses::Vector{Float32}
-    valid_losses::Vector{Float32}
-    
-    lr_updates::Vector{Int}
-    args::AT
-    model::MT
-    opt::OT
+    train_losses::Vector{Float32}   # Training loss at each epoch
+    valid_losses::Vector{Float32}   # Validation loss at each epoch
+        
+    lr_updates::Vector{Int}         # Epochs at which the learning rate was updated
+    args::AT                        # Training arguments
+    model::MT                       # Model to train
+    opt::OT                         # Optimiser
 end
     
 function NNTrainer(args::TrainArgs, model)
@@ -133,6 +136,9 @@ function NNTrainer(args::TrainArgs, model)
     trainer
 end
 
+"""
+    Compute training & validation losses at the current epoch and save them in the training struct.
+"""
 function update_losses!(trainer::NNTrainer) 
     train_loss = mean_loss(trainer.args.train_data[1], trainer.args.train_data[2], trainer.model; loss=loss_kldivergence)
     valid_loss = mean_loss(trainer.args.valid_data[1], trainer.args.valid_data[2], trainer.model; loss=loss_kldivergence)
@@ -142,6 +148,11 @@ function update_losses!(trainer::NNTrainer)
     nothing
 end
 
+"""
+    Iteration facilities for the trainer. Each iteration increases the current round by 1 and
+    checks if the learning rate should be decreased at that round; if so, it changes the learning
+    rate. This function can mutate the trainer!
+"""
 Base.iterate(trainer::NNTrainer) = (length(trainer.train_losses), trainer)
 
 function Base.iterate(iter, trainer::NNTrainer)
@@ -161,41 +172,54 @@ end
 
 ##
 
+"""
+    Decrease the learning rate if at least 50 rounds have passed since the 
+    last decrease, and if the mean validation loss has changed by less than 0.5%
+    in the last 50 rounds.
+"""
 function should_decrease_lr(trainer::NNTrainer)
     losses = trainer.valid_losses
     
-    d = 50 # history length param
     round = length(losses)
-    round <= last(trainer.lr_updates) + d && return false
+    round <= last(trainer.lr_updates) + 50 && return false
     
-    mean(losses[end-20:end]) > mean(losses[end-d:end-20]) * 0.995
+    mean(losses[end-25:end]) > mean(losses[end-50:end-25]) * 0.995
 end
 
+##
+
+"""
+    train_NN!(model, train_data, valid_data; kwargs...)
+
+    Train Nessie using the given training data and validation data. `train_data` and `valid_data` should be tuples
+    `(X, y)`, where `X` is a vector of input points and `y` the corresponding vector of training data. Returns
+    the training and validation losses for each epoch.
+
+    The following keyword arguments are supported by this function:
+        `threads`: use multithreading (defaults to `true`)
+        `loss`: loss function to use (defaults to `loss_crossentropy`)
+
+    All other keyword arguments will be passed to `TrainArgs` (see above).
+"""
 function train_NN!(model, train_data, valid_data; 
-                   optimizer = ADAM, cb=nothing, threads=true, loss=loss_crossentropy, kwargs...)
-    args = TrainArgs(train_data, valid_data, optimizer; kwargs...)
+                   threads=true, loss=loss_crossentropy, kwargs...)
+    args = TrainArgs(train_data, valid_data; kwargs...)
 
     ## Progress meter
-    progress = if !(cb isa Nothing)
-        nothing
-    else
-        Progress(args.max_rounds; dt=1, desc="Training...")
-    end
+    progress = Progress(args.max_rounds; dt=1, desc="Training...")
     
     trainer = NNTrainer(args, model)
     
     for iter in trainer
         train_round!(trainer, threads; loss)
 
-        cb !== nothing && cb(trainer.opt.eta, trainer.train_losses[end], trainer.valid_losses[end])
-        
         ProgressMeter.next!(progress; showvalues = [(:iter, iter), 
                                                     (:learning_rate, trainer.opt.eta), 
                                                     (:train_loss, trainer.train_losses[end]),
                                                     (:valid_loss, trainer.valid_losses[end])])
     end
 
-    progress !== nothing && finish!(progress)
+    finish!(progress)
     
     trainer.train_losses, trainer.valid_losses
 end
@@ -212,6 +236,9 @@ macro maybe_threaded(ex)
     end
 end
 
+"""
+    Perform one training epoch.
+"""
 function train_round!(trainer::NNTrainer, threads::Bool=true; loss=loss_cross_entropy)
     p = Flux.params(trainer.model)
     

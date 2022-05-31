@@ -5,6 +5,7 @@ using Base: @kwdef
 
 ##
 
+# Standard split functionality from the Flux documentation (under "Advanced Model Building")
 struct Split{T}
     paths::T
 end
@@ -16,6 +17,32 @@ Flux.@functor Split
 
 ##
 
+""" 
+    Convenience struct for the input layers used in the paper, which do nothing but log-transform
+    their inputs.
+"""
+struct InputLayer end
+
+(::InputLayer)(x::AbstractArray) = log.(x)
+
+"""
+    Construct an output layer for a MNB neural network. The output is a tuple of three vectors:
+    the count parameters `r`, the success probabilities `p` and the mixture weights `w`.
+"""
+function MNBOutputLayer(x, n_comps)
+    layer_ww = Chain(Dense(x, n_comps), softmax)
+    layer_pp = Dense(x, n_comps, sigmoid)
+    layer_rr = Dense(x, n_comps, exp)
+
+    Split(layer_rr, layer_pp, layer_ww)
+end
+
+##
+
+"""
+    Lightweight convenience wrapper for a neural network that outputs mixtures of negative binomials.
+    Mainly used in connection with the utility functions defined in this section.
+"""
 struct MNBModel{T}
     nn::T
 end
@@ -23,8 +50,6 @@ end
 Flux.@functor MNBModel
 
 (m::MNBModel)(x::AbstractArray) = m.nn(x)
-
-## Cool utility functions
 
 Distribution(m::MNBModel, x::AbstractVector) = NegativeBinomialMixture(m, x)
 
@@ -41,22 +66,9 @@ Distributions.logpdf(m::MNBModel, x::AbstractVector, k) = logpdf(Distribution(m,
 
 ##
 
-struct InputLayer end
-
-(::InputLayer)(x::AbstractArray) = log.(x)
-
-function MNBOutputLayer(x, n_comps)
-    layer_ww = Chain(Dense(x, n_comps), softmax)
-    layer_pp = Dense(x, n_comps, sigmoid)
-    layer_rr = Dense(x, n_comps, exp)
-
-    Split(layer_rr, layer_pp, layer_ww)
-end
-
-##
-
-# Optimise logbeta?
-
+""" 
+    Optimised version of `Distributions.logpdf(NegativeBinomial(r, p), k)`. 
+"""
 function nblogpdf(r, p, k)
     # mostly copy from Distributions.jl NegativeBinomial def
     # iszero(p) && @warn "p = 0 (k = $k, r = $r)"
@@ -68,6 +80,9 @@ end
 
 nbpdf(r, p, k) = exp(nblogpdf(r, p, k))
 
+"""
+    Optimised version of `Distributions.pdf(NegativeBinomialMixture(...), k)`.
+"""
 function mix_nbpdf(rr::AbstractVector, pp::AbstractVector,
                    ww::AbstractVector, k)
     ret = ww[1] .* nbpdf.(rr[1], pp[1], k)
