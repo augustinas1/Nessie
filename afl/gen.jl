@@ -1,13 +1,12 @@
+""" Generate training, validation and test data for the AFL example """
 using DiffEqBase, Sobol, JLD2
 
 include("afl.jl")
 include("../generate_data.jl")
 
-# set up FSP
-
+# We use the FSP instead of the SSA in this demonstrative example
 fsp_sys = FSPSystem(rn_afl, combinatoric_ratelaw=false)
-state_space = [2, 400]
-u0 = zeros(state_space...)
+u0 = zeros(2, 400)
 u0[2, 1] = 1.0
 fsp_prob = ODEProblem(fsp_sys, u0, (0., 1.), ones(numparams(rn_afl)))
 solver(ts, p) = fsp_solve(fsp_prob, ts, p; marginals=[2], abstol=1e-6, reltol=1e-6)
@@ -22,12 +21,14 @@ ranges = [ 0 2
            0 10
            0 100 ]
 
+# Draw training, validation and test parameters from a Sobol sequence
 s = SobolSeq(ranges[:,1], ranges[:,2])
 
 ps_train = [ Sobol.next!(s) for i in 1:1000 ]
 ps_valid = [ Sobol.next!(s) for i in 1:100 ]
 ps_test = [ Sobol.next!(s) for i in 1:500 ]
 
+# Use the FSP to create training dataset
 X_train, y_train = build_dataset_parallel(ts, ps_train, solver)
 @save joinpath(AFL_DIR, "train_data.jld2") X_train y_train
 
