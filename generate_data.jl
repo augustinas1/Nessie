@@ -78,9 +78,10 @@ end
 	build_dataset_parallel(ts, ps, solver)
 
 	As `build_dataset`, but uses multithreading to run the solver at multiple parameter
-	sets in parallel. If training data are generated using the SSA (via `ssa_solve`), then
-	each call to `solver` already uses multithreading internally andthis function will likely 
-	offer no advantages over `build_dataset`. 
+	sets in parallel. Note that this is mostly meant for use with the FSP which would 
+	otherwise generate data linearly using one thread. If training data are generated 
+	using the SSA (via `ssa_solve`), then each call to `solver` already uses multithreading 
+	internally and this function will likely offer no advantages over `build_dataset`. 
 """
 function build_dataset_parallel(ts, ps, solver)
     #progress = Progress(length(ps), 1, "Generating data... ")
