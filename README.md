@@ -23,6 +23,7 @@ Examples that were used in the paper can be found below. The above steps are dis
 - Autoregulatory Feedback Loop (folder `afl`)
 - Genetic Toggle Switch (folder `ts`)
 - MAPK Pathway (folder `mapk`)
+- Model of mRNA Turnover (folder `mrnad`)
 
 ## References:
 
