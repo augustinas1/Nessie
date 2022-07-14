@@ -35,7 +35,7 @@ u0[1] = 1
 
 # Set up the SSA simulations
 jsys = convert(JumpSystem, rn, combinatoric_ratelaw=false)           
-dprob = DiscreteProblem(jsys, u0, (0.0, last(ts)), zeros(Float64, numreactionparams(rn)))
+dprob = DiscreteProblem(jsys, u0, (0.0, last(ts)), zeros(Float64, 18))
 jprob = JumpProblem(jsys, dprob, Direct(), save_positions=(false, false))
 
 # full-length mRNA (A + B + BC1 + ... + BC5 + C + D + E + F)
@@ -86,9 +86,9 @@ plt = plot(plt1, plt2, layout=l, size=(330, 120), bottom_margin=0Plots.mm, top_m
 # Predicted vs true moments
 # ---------------------------------------------------------------------------------------------------
 
-# Plotting points only for t=1000
+# Plotting points only for t=500
 ind = 4
-m = 4
+m = 8
 m_NN = mean.(Distribution.(Ref(model), X_test[ind:m:end]))
 var_NN = var.(Distribution.(Ref(model), X_test[ind:m:end]))
 
@@ -126,4 +126,4 @@ plt2 = annotate!(plt2, [(-1.5, -1.5, Plots.text("×10⁴", 6, :black, :center))]
 plot(plt1, plt2, size=(260, 130), 
      left_margin=-1Plots.mm, bottom_margin=0Plots.mm, top_margin=-1Plots.mm, right_margin=0Plots.mm)
 
-#savefig(joinpath(MODEL_DIR, "true_vs_predict_moments.svg"))
+savefig(joinpath(MODEL_DIR, "true_vs_predict_moments.svg"))

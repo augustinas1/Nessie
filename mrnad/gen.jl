@@ -1,4 +1,4 @@
-""" Generate training, validation and test set data for the model of mRNA turnover """
+# Generate training, validation and test set data for the model of mRNA turnover
 using Sobol
 using JLD2
 
@@ -46,7 +46,7 @@ end
 
 # Convert reaction network into a JumpProblem for use with the SSA
 jsys = convert(JumpSystem, rn, combinatoric_ratelaw=false)           
-dprob = DiscreteProblem(jsys, u0, (0.0, last(ts)), zeros(Float64, numreactionparams(rn)))
+dprob = DiscreteProblem(jsys, u0, (0.0, last(ts)), zeros(Float64, 18))
 jprob = JumpProblem(jsys, dprob, Direct(), save_positions=(false, false))
 
 # Full-length mRNA (A + B + BC1 + ... + BC5 + C + D + E + F)
@@ -61,11 +61,11 @@ seq = LogSobolSeq(ranges[:,1], ranges[:,2])
 
 @time train_pts = [ Sobol.next!(seq) for i in 1:100000 ]
 @time valid_pts = [ Sobol.next!(seq) for i in 1:100 ]
-@time test_pts = [ Sobol.next!(seq) for i in 1:5000 ]
+@time test_pts = [ Sobol.next!(seq) for i in 1:1000 ]
 
+X_test, y_test = build_dataset(ts, test_pts, solver_accurate)
+@save joinpath(MODEL_DIR, "test_data.jld2") X_test y_test
 X_train, y_train = build_dataset(ts, train_pts, solver)
 @save joinpath(MODEL_DIR, "train_data.jld2") X_train y_train
 X_valid, y_valid = build_dataset(ts, valid_pts, solver_accurate)
 @save joinpath(MODEL_DIR, "valid_data.jld2") X_valid y_valid
-X_test, y_test = build_dataset(ts, test_pts, solver_accurate)
-@save joinpath(MODEL_DIR, "test_data.jld2") X_test y_test
