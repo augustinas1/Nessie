@@ -8,7 +8,7 @@ include("../generate_data.jl")
 fsp_sys = FSPSystem(rn_afl, combinatoric_ratelaw=false)
 u0 = zeros(2, 400)
 u0[2, 1] = 1.0
-fsp_prob = ODEProblem(fsp_sys, u0, (0., 1.), ones(numparams(rn_afl)))
+fsp_prob = convert(ODEProblem, fsp_sys, u0, (0., 1.), ones(numparams(rn_afl)))
 solver(ts, p) = fsp_solve(fsp_prob, ts, p; marginals=[2], abstol=1e-6, reltol=1e-6)
 
 # time snapshots

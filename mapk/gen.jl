@@ -18,8 +18,8 @@ train_pts = [ Sobol.next!(seq) for i in 1:15000 ];
 X_train, y_train = build_dataset(tt, train_pts, solver_train)
 @save joinpath(DATA_DIR, "train_data.jld2") X_train y_train
 
-#X_test, y_test = build_dataset(tt, test_pts, solver_acc)
-#@save joinpath(DATA_DIR, "test_data.jld2") X_test y_test
+X_test, y_test = build_dataset(tt, test_pts, solver_acc)
+@save joinpath(DATA_DIR, "test_data.jld2") X_test y_test
 
-#X_val, y_val = build_dataset(tt, val_pts, solver_acc)
-#@save joinpath(DATA_DIR, "val_data.jld2") X_val y_val
+X_val, y_val = build_dataset(tt, val_pts, solver_acc)
+@save joinpath(DATA_DIR, "val_data.jld2") X_val y_val
