@@ -14,6 +14,10 @@ cell_obs = map(x -> x[:], data_tl["Data"]["Series"][4]["Cytometry"]["pSTL1qV"]["
 const hog_tt = data_tl["Data"]["Series"][4]["Microscopy"]["Time"][:] ./ 60
 const hog_data = data_tl["Data"]["Series"][4]["Microscopy"]["Hog"][:];
 
+# this global constant stores the time-dependent reaction propensity for the
+# pSTL activation rate
+const hog_rate = zeros(length(hog_data))
+
 # The reaction pSTL_off --> pSTL_on has a time-dependent rate
 # and is implemented separately using the DelaySSAToolkit
 rn = @reaction_network begin
@@ -25,29 +29,22 @@ rn = @reaction_network begin
     60 * c8, mRNA --> 0
 end hog1p_0 h Kd Vmax c2 c3 c4 c5 c6 c7 c8
 
-## Time-dependent reaction
+## Code for the time-dependent reaction
 function draw_waiting_time(t, p)
     draw_waiting_time(Random.GLOBAL_RNG, t, p)
 end
 
-function get_c1(hog1p_s, p)
-    hog1p_0, h, Kd, Vmax = @view p[1:4]
-    hog1p = max(0, hog1p_s) + hog1p_0
-    hog1p_h = hog1p^h
-    60. * Vmax * (hog1p_h) / (Kd^h + hog1p_h)
-end
-
-# Draw the time of the next hog1 binding event (using the time-dependent hog1 signal)
+# Sample time of the next hog1 binding event
 function draw_waiting_time(rng, t, p)
     res = hog_tt[2]
     tidx = floor(Int, t / res)
     sum = 0.
     thresh = -log(rand(rng, Uniform()))
     
-    coarseness = 3
+    coarseness = 1
     while tidx < length(hog_tt) + 1 - coarseness
         tidx += coarseness
-        rate = get_c1(hog_data[tidx], p)
+        rate = hog_rate[tidx]
         sum += coarseness * res * rate
         
         if sum > thresh
@@ -58,7 +55,8 @@ function draw_waiting_time(rng, t, p)
     hog_tt[end] - t
 end
 
-
+# We use DelaySSAToolkit to model the reaction pSTL_off -> pSTL_on
+# instead of using a VariableRateJump.
 delay_trigger_affect! = function (integrator, rng=missing)
     τ = draw_waiting_time(integrator.t, integrator.p)
     append!(integrator.de_chan[1], τ)
@@ -94,6 +92,9 @@ end
 function ssa_solve_dly(jprob, ts, p, n_traj; marginals)
     jprob = remake(jprob, tspan=(0., ts[end]), p=p)
 
+    hog1p_0, h, Kd, Vmax = @view p[1:4]
+    hog_rate .= 60. .* Vmax ./ ((Kd ./ (max.(0, hog_data) .+ hog1p_0)).^h .+ 1)
+    
     sol_SSA = solve(EnsembleProblem(jprob), SSAStepper(), saveat=ts, trajectories=n_traj)#, tstops=[0.01], callback=pcb)
     
     [ ssa_extract_marg_dly(sol_SSA, marg) for marg in marginals ]

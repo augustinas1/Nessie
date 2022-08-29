@@ -1,4 +1,4 @@
-""" Generate training, validation and test data for the AFL example """
+# Generate training, validation and test data for the AFL example
 using DiffEqBase, Sobol, JLD2
 
 include("afl.jl")

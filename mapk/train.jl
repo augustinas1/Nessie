@@ -12,14 +12,14 @@ include("../train_NN.jl")
 include("network.jl")
 include("inference.jl")
 
-@load "train_data.jld2" X_train y_train
-@load "val_data.jld2" X_val y_val
+@load joinpath(DATA_DIR, "train_data.jld2") X_train y_train
+@load joinpath(DATA_DIR, "val_data.jld2") X_val y_val
 
 train_data = (X_train, y_train)
 pretrain_data = (X_train[1:12000], y_train[1:12000])
 val_data = (X_val, y_val);
 
-model = build_model(6)
+model = build_model(5)
 
 # Pretraining
 @time train_losses, val_losses = train_NN!(model, pretrain_data, val_data; max_rounds=100, lr=0.001, batchsize=1000)

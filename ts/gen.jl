@@ -1,4 +1,4 @@
-""" Generate training, validation and test set data for the toggle switch example """
+# Generate training, validation and test set data for the toggle switch example
 using Sobol
 using JLD2
 
@@ -50,10 +50,11 @@ seq = SobolSeq(ranges[:,1], ranges[:,2])
 @time valid_pts = [ Sobol.next!(seq) for i in 1:100 ]
 @time test_pts = [ Sobol.next!(seq) for i in 1:500 ]
 
-#@time X_train, y_train = build_dataset(ts_train, train_pts, solver)
-#@time X_valid, y_valid = build_dataset(ts_valid, valid_pts, solver_accurate)
-#@time X_test, y_test = build_dataset(ts_valid, test_pts, solver_accurate)
+@time X_train, y_train = build_dataset(ts_train, train_pts, solver)
+@save joinpath(MODEL_DIR, "train_data.jld2") X_train y_train
 
-#@save joinpath(MODEL_DIR, "train_data.jld2") X_train y_train
-#@save joinpath(MODEL_DIR, "valid_data.jld2") X_valid y_valid
-#@save joinpath(MODEL_DIR, "test_data.jld2") X_test y_test
+@time X_valid, y_valid = build_dataset(ts_valid, valid_pts, solver_accurate)
+@save joinpath(MODEL_DIR, "valid_data.jld2") X_valid y_valid
+
+@time X_test, y_test = build_dataset(ts_valid, test_pts, solver_accurate)
+@save joinpath(MODEL_DIR, "test_data.jld2") X_test y_test

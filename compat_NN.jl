@@ -1,4 +1,4 @@
-""" This file contains various performance hacks mostly involving Zygote. """
+# This file contains various performance hacks mostly involving Zygote.
 using ZygoteRules
 
 function pullback_for_default_literal_getproperty(cx::ZygoteRules.AContext, x, ::Val{f}) where {f}
