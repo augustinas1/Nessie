@@ -4,7 +4,7 @@
 
 This repository contains the code for the paper
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;A. Sukys, K. Öcal and R. Grima, "Approximating Solutions of the Chemical Master Equation using Neural Networks"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;A. Sukys, K. Öcal and R. Grima, "Approximating Solutions of the Chemical Master Equation using Neural Networks", [iScience 25(9)](https://www.cell.com/iscience/fulltext/S2589-0042(22\)01282-2) (2022)
 
 Running the MAPK Pathway inference example requires data from [[1]](#1) which can be obtained from the authors.
 
